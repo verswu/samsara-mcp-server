@@ -20,6 +20,10 @@ from tests.conftest import (
     SAMPLE_SAFETY_EVENTS_RESPONSE,
     SAMPLE_SAFETY_EVENTS_BY_ID_RESPONSE,
     SAMPLE_TRIPS_RESPONSE,
+    SAMPLE_LIST_TAGS_RESPONSE,
+    SAMPLE_CREATE_TAG_RESPONSE,
+    SAMPLE_SAFETY_SETTINGS_RESPONSE,
+    SAMPLE_SPEEDING_INTERVALS_RESPONSE,
     SAMPLE_DRIVERS_RESPONSE,
     SAMPLE_CREATE_DRIVER_RESPONSE,
     SAMPLE_GET_DRIVER_RESPONSE,
@@ -408,6 +412,125 @@ async def test_update_driver_401_raises_samsara_api_error(client, mock_httpx_cli
     mock_httpx_client.patch.return_value = _make_response(401, {"message": "Unauthorized"})
     with pytest.raises(SamsaraAPIError) as exc_info:
         await client.update_driver(id="driver-123", driver={})
+    assert exc_info.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# list_tags — query params and defaults
+# ---------------------------------------------------------------------------
+
+async def test_list_tags_builds_correct_params(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(200, SAMPLE_LIST_TAGS_RESPONSE)
+    await client.list_tags(limit=10, after="cursor-1")
+    mock_httpx_client.get.assert_called_once_with(
+        "/tags",
+        params={"limit": 10, "after": "cursor-1"},
+    )
+
+
+async def test_list_tags_default_values(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(200, SAMPLE_LIST_TAGS_RESPONSE)
+    result = await client.list_tags()
+    assert result == SAMPLE_LIST_TAGS_RESPONSE
+    mock_httpx_client.get.assert_called_once_with("/tags", params={})
+
+
+async def test_list_tags_401_raises_samsara_api_error(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(401, {"message": "Unauthorized"})
+    with pytest.raises(SamsaraAPIError) as exc_info:
+        await client.list_tags()
+    assert exc_info.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# create_tag — POST body
+# ---------------------------------------------------------------------------
+
+async def test_create_tag_sends_correct_body(client, mock_httpx_client):
+    mock_httpx_client.post.return_value = _make_response(200, SAMPLE_CREATE_TAG_RESPONSE)
+    body = {"name": "New Tag"}
+    result = await client.create_tag(body)
+    assert result == SAMPLE_CREATE_TAG_RESPONSE
+    mock_httpx_client.post.assert_called_once_with("/tags", json=body)
+
+
+async def test_create_tag_429_raises_rate_limit_error(client, mock_httpx_client):
+    mock_httpx_client.post.return_value = _make_response(
+        429,
+        {"message": "Too many requests"},
+        headers={"Retry-After": "30"},
+    )
+    with pytest.raises(SamsaraRateLimitError) as exc_info:
+        await client.create_tag({"name": "Test"})
+    assert exc_info.value.retry_after == 30
+
+
+# ---------------------------------------------------------------------------
+# get_speeding_intervals — GET /speeding-intervals/stream
+# ---------------------------------------------------------------------------
+
+async def test_get_speeding_intervals_builds_correct_params(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(200, SAMPLE_SPEEDING_INTERVALS_RESPONSE)
+    await client.get_speeding_intervals(
+        asset_ids=["asset-1", "asset-2"],
+        start_time="2024-01-15T00:00:00Z",
+        end_time="2024-01-16T00:00:00Z",
+        query_by="tripStartTime",
+        include_asset=True,
+    )
+    mock_httpx_client.get.assert_called_once_with(
+        "/speeding-intervals/stream",
+        params={
+            "assetIds": ["asset-1", "asset-2"],
+            "startTime": "2024-01-15T00:00:00Z",
+            "endTime": "2024-01-16T00:00:00Z",
+            "queryBy": "tripStartTime",
+            "includeAsset": True,
+        },
+    )
+
+
+async def test_get_speeding_intervals_required_only(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(200, SAMPLE_SPEEDING_INTERVALS_RESPONSE)
+    result = await client.get_speeding_intervals(
+        asset_ids=["asset-1"],
+        start_time="2024-01-15T00:00:00Z",
+    )
+    assert result == SAMPLE_SPEEDING_INTERVALS_RESPONSE
+    mock_httpx_client.get.assert_called_once_with(
+        "/speeding-intervals/stream",
+        params={
+            "assetIds": ["asset-1"],
+            "startTime": "2024-01-15T00:00:00Z",
+        },
+    )
+
+
+async def test_get_speeding_intervals_401_raises_samsara_api_error(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(401, {"message": "Unauthorized"})
+    with pytest.raises(SamsaraAPIError) as exc_info:
+        await client.get_speeding_intervals(
+            asset_ids=["asset-1"],
+            start_time="2024-01-15T00:00:00Z",
+        )
+    assert exc_info.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# get_safety_settings — GET /fleet/settings/safety, no params
+# ---------------------------------------------------------------------------
+
+async def test_get_safety_settings_calls_endpoint(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(200, SAMPLE_SAFETY_SETTINGS_RESPONSE)
+    result = await client.get_safety_settings()
+    assert result == SAMPLE_SAFETY_SETTINGS_RESPONSE
+    mock_httpx_client.get.assert_called_once_with("/fleet/settings/safety")
+
+
+async def test_get_safety_settings_401_raises_samsara_api_error(client, mock_httpx_client):
+    mock_httpx_client.get.return_value = _make_response(401, {"message": "Unauthorized"})
+    with pytest.raises(SamsaraAPIError) as exc_info:
+        await client.get_safety_settings()
     assert exc_info.value.status_code == 401
 
 

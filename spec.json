@@ -1,17 +1,91 @@
 {
-"/fleet/vehicles/{id}": {
+"/speeding-intervals/stream": {
       "get": {
-        "description": "Get information about a specific vehicle. \n\n **Submit Feedback**: Likes, dislikes, and API feature requests should be filed as feedback in our \u003Ca href=\"https://forms.gle/zkD4NCH7HjKb7mm69\" target=\"_blank\"\u003EAPI feedback form\u003C/a\u003E. If you encountered an issue or noticed inaccuracies in the API documentation, please \u003Ca href=\"https://www.samsara.com/help\" target=\"_blank\"\u003Esubmit a case\u003C/a\u003E to our support team.\n\nTo use this endpoint, select **Read Vehicles** under the Vehicles category when creating or editing an API token. \u003Ca href=\"https://developers.samsara.com/docs/authentication#scopes-for-api-tokens\" target=\"_blank\"\u003ELearn More.\u003C/a\u003E",
-        "operationId": "getVehicle",
+        "description": "This endpoint will return all speeding intervals associated with all trips that have been collected for your organization based on the time parameters passed in. Only completed trips are included. Trips with no speeding intervals detected will be returned with an empty list of intervals. Results are paginated.\n\n \u003Cb\u003ERate limit:\u003C/b\u003E 5 requests/sec (learn more about rate limits \u003Ca href=\"https://developers.samsara.com/docs/rate-limits\" target=\"_blank\"\u003Ehere\u003C/a\u003E).\n\nTo use this endpoint, select **Read Speeding Intervals** under the Speeding Intervals category when creating or editing an API token. \u003Ca href=\"https://developers.samsara.com/docs/authentication#scopes-for-api-tokens\" target=\"_blank\"\u003ELearn More.\u003C/a\u003E\n \n\n **Submit Feedback**: Likes, dislikes, and API feature requests should be filed as feedback in our \u003Ca href=\"https://forms.gle/zkD4NCH7HjKb7mm69\" target=\"_blank\"\u003EAPI feedback form\u003C/a\u003E. If you encountered an issue or noticed inaccuracies in the API documentation, please \u003Ca href=\"https://www.samsara.com/help\" target=\"_blank\"\u003Esubmit a case\u003C/a\u003E to our support team.",
+        "operationId": "getSpeedingIntervals",
         "parameters": [
           {
-            "description": "ID of the vehicle. This can either be the Samsara-specified ID, or an external ID. External IDs are customer specified key-value pairs created in the POST or PATCH requests of this resource, or automatically populated by fields on the vehicle. To specify an external ID as part of a path parameter, use the following format: `key:value`. For example, `maintenanceId:250020`. Automatically populated external IDs are prefixed with `samsara.`. For example, `samsara.vin:1HGBH41JXMN109186`.",
-            "in": "path",
-            "name": "id",
+            "description": "Comma-separated list of asset IDs. Include up to 50 asset IDs.",
+            "explode": false,
+            "in": "query",
+            "name": "assetIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "RFC 3339 timestamp that indicates when to begin receiving data. Value is compared against `updatedAtTime` or `tripStartTime` depending on the queryBy parameter.",
+            "in": "query",
+            "name": "startTime",
             "required": true,
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "RFC 3339 timestamp which is compared against `updatedAtTime` or `tripStartTime` depending on the queryBy parameter. If not provided then the endpoint behaves as an unending feed of changes.",
+            "in": "query",
+            "name": "endTime",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Decide which timestamp the `startTime` and `endTime` are compared to.  Valid values: `updatedAtTime`, `tripStartTime`",
+            "in": "query",
+            "name": "queryBy",
+            "schema": {
+              "default": "updatedAtTime",
+              "enum": [
+                "updatedAtTime",
+                "tripStartTime"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Indicates whether or not to return expanded “asset” data",
+            "in": "query",
+            "name": "includeAsset",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Indicates whether or not to return trip's driver id",
+            "in": "query",
+            "name": "includeDriverId",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": " If specified, this should be the endCursor value from the previous page of results. When present, this request will return the next page of results that occur immediately after the previous page of results.",
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional string of comma-separated severity levels to filter speeding intervals by. Valid values:  “light”, ”moderate”, ”heavy”, “severe”. This filter does not exclude trips that have no speeding intervals.",
+            "explode": false,
+            "in": "query",
+            "name": "severityLevels",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -19,80 +93,117 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VehicleResponse"
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsResponseBody"
                 }
               }
             },
-            "description": "Returns the specified vehicle object."
+            "description": "OK response."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsUnauthorizedErrorResponseBody"
+                }
+              }
+            },
+            "description": "Unauthorized response."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsNotFoundErrorResponseBody"
+                }
+              }
+            },
+            "description": "Not Found response."
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsMethodNotAllowedErrorResponseBody"
+                }
+              }
+            },
+            "description": "Method Not Allowed response."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsTooManyRequestsErrorResponseBody"
+                }
+              }
+            },
+            "description": "Too Many Requests response."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsInternalServerErrorResponseBody"
+                }
+              }
+            },
+            "description": "Internal Server Error response."
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsNotImplementedErrorResponseBody"
+                }
+              }
+            },
+            "description": "Not Implemented response."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsBadGatewayErrorResponseBody"
+                }
+              }
+            },
+            "description": "Bad Gateway response."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsServiceUnavailableErrorResponseBody"
+                }
+              }
+            },
+            "description": "Service Unavailable response."
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsGatewayTimeoutErrorResponseBody"
+                }
+              }
+            },
+            "description": "Gateway Timeout response."
           },
           "default": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/standardErrorResponse"
+                  "$ref": "#/components/schemas/SpeedingIntervalsGetSpeedingIntervalsBadRequestErrorResponseBody"
                 }
               }
             },
-            "description": "Error response"
+            "description": "Bad Request response."
           }
         },
-        "summary": "Retrieve a vehicle",
+        "summary": "Get Speeding Intervals",
         "tags": [
-          "Vehicles"
+          "Speeding Intervals"
         ]
-      },
-      "patch": {
-        "description": "Updates the given Vehicle object.\n\n**Note:** Vehicle objects are automatically created when Samsara Vehicle Gateways are installed. You cannot create a Vehicle object via API.\n\nYou are able to *update* many of the fields of a Vehicle.\n\n**Note**: There are no required fields in the request body, and you only need to provide the fields you wish to update. \n\n **Submit Feedback**: Likes, dislikes, and API feature requests should be filed as feedback in our \u003Ca href=\"https://forms.gle/zkD4NCH7HjKb7mm69\" target=\"_blank\"\u003EAPI feedback form\u003C/a\u003E. If you encountered an issue or noticed inaccuracies in the API documentation, please \u003Ca href=\"https://www.samsara.com/help\" target=\"_blank\"\u003Esubmit a case\u003C/a\u003E to our support team.\n\nTo use this endpoint, select **Write Vehicles** under the Vehicles category when creating or editing an API token. \u003Ca href=\"https://developers.samsara.com/docs/authentication#scopes-for-api-tokens\" target=\"_blank\"\u003ELearn More.\u003C/a\u003E",
-        "operationId": "updateVehicle",
-        "parameters": [
-          {
-            "description": "ID of the vehicle. This can either be the Samsara-specified ID, or an external ID. External IDs are customer specified key-value pairs created in the POST or PATCH requests of this resource, or automatically populated by fields on the vehicle. To specify an external ID as part of a path parameter, use the following format: `key:value`. For example, `maintenanceId:250020`. Automatically populated external IDs are prefixed with `samsara.`. For example, `samsara.vin:1HGBH41JXMN109186`.",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateVehicleRequest"
-              }
-            }
-          },
-          "description": "Fields that can be patched on a vehicle.",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleResponse"
-                }
-              }
-            },
-            "description": "Returns the specified vehicle object."
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/standardErrorResponse"
-                }
-              }
-            },
-            "description": "Error response"
-          }
-        },
-        "summary": "Update a vehicle",
-        "tags": [
-          "Vehicles"
-        ],
-        "x-codegen-request-body-name": "vehicle"
       }
     }
 }

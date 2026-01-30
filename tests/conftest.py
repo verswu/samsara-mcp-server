@@ -157,6 +157,59 @@ SAMPLE_GATEWAYS_RESPONSE: dict[str, Any] = {
     "pagination": {"endCursor": "cursor-gw", "hasNextPage": False},
 }
 
+SAMPLE_LIST_TAGS_RESPONSE: dict[str, Any] = {
+    "data": [
+        {
+            "id": "tag-1",
+            "name": "West Coast",
+            "parentTagId": None,
+        },
+        {
+            "id": "tag-2",
+            "name": "East Coast",
+            "parentTagId": None,
+        },
+    ],
+    "pagination": {"endCursor": "cursor-tags", "hasNextPage": False},
+}
+
+SAMPLE_CREATE_TAG_RESPONSE: dict[str, Any] = {
+    "data": {
+        "id": "tag-new-1",
+        "name": "New Tag",
+        "parentTagId": None,
+    }
+}
+
+SAMPLE_SAFETY_SETTINGS_RESPONSE: dict[str, Any] = {
+    "data": {
+        "harshAccelerationSensitivity": "normal",
+        "harshBrakingSensitivity": "normal",
+        "harshTurnSensitivity": "normal",
+        "crashDetectionEnabled": True,
+        "inCabAlertsEnabled": True,
+    }
+}
+
+SAMPLE_SPEEDING_INTERVALS_RESPONSE: dict[str, Any] = {
+    "data": [
+        {
+            "tripId": "trip-123",
+            "assetId": "asset-456",
+            "intervals": [
+                {
+                    "startTime": "2024-01-15T10:00:00Z",
+                    "endTime": "2024-01-15T10:05:00Z",
+                    "speedMph": 75,
+                    "speedLimitMph": 65,
+                    "severity": "moderate",
+                }
+            ],
+        }
+    ],
+    "pagination": {"endCursor": "cursor-speed", "hasNextPage": False},
+}
+
 
 # ---------------------------------------------------------------------------
 # Mock SamsaraClient (no real HTTP)
@@ -269,3 +322,27 @@ def sample_org_info_response():
 def sample_gateways_response():
     """Sample GET /gateways response."""
     return SAMPLE_GATEWAYS_RESPONSE
+
+
+@pytest.fixture
+def sample_list_tags_response():
+    """Sample GET /tags response."""
+    return SAMPLE_LIST_TAGS_RESPONSE
+
+
+@pytest.fixture
+def sample_create_tag_response():
+    """Sample POST /tags response."""
+    return SAMPLE_CREATE_TAG_RESPONSE
+
+
+@pytest.fixture
+def sample_safety_settings_response():
+    """Sample GET /fleet/settings/safety response."""
+    return SAMPLE_SAFETY_SETTINGS_RESPONSE
+
+
+@pytest.fixture
+def sample_speeding_intervals_response():
+    """Sample GET /speeding-intervals/stream response."""
+    return SAMPLE_SPEEDING_INTERVALS_RESPONSE

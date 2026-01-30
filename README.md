@@ -14,6 +14,10 @@ An MCP (Model Context Protocol) server for integrating with the Samsara Fleet AP
 - **get_drivers** - List all drivers in the organization with filtering by status, tags, and time ranges
 - **create_driver** - Create a new driver (name, username, password required; optional license, phone, notes, tags, etc.)
 - **list_gateways** - List all gateways with optional filter by models and pagination (5 req/sec; Read Gateways scope)
+- **list_tags** - List all tags in the organization for grouping vehicles, drivers, and assets
+- **create_tag** - Create a new tag in the organization
+- **get_speeding_intervals** - Get speeding intervals for trips with severity filtering
+- **get_safety_settings** - Get safety settings (harsh event sensitivity, alerts, etc.)
 - **get_org_info** - Get information about your organization (no parameters)
 - Comprehensive error handling for rate limits and API errors
 - Fail-fast startup validation
@@ -209,6 +213,55 @@ List all gateways. Optional filter by gateway models and pagination cursor. Rate
 
 **Scope:** Read Gateways (Setup & Administration)
 
+### list_tags
+
+List all tags in the organization. Tags are used to group and filter vehicles, drivers, and other assets.
+
+**Parameters:**
+- `limit` - Number of results (1-512, default 512)
+- `after` - Pagination cursor from previous response
+
+**Scope:** Read Tags (Setup & Administration)
+
+### create_tag
+
+Create a new tag in the organization.
+
+**Parameters:**
+- `name` - **Required.** Name of the tag to create.
+- `parentTagId` - Optional parent tag ID for nested tags.
+
+**Scope:** Write Tags (Setup & Administration)
+
+### get_speeding_intervals
+
+Get speeding intervals for trips. Returns speeding data for completed trips based on time parameters.
+
+**Parameters:**
+- `assetIds` - **Required.** List of asset IDs (up to 50).
+- `startTime` - **Required.** RFC 3339 timestamp for start of query range.
+- `endTime` - RFC 3339 timestamp for end of query range (optional).
+- `queryBy` - Compare times against 'updatedAtTime' (default) or 'tripStartTime'.
+- `includeAsset` - Include expanded asset data.
+- `includeDriverId` - Include driver ID in response.
+- `after` - Pagination cursor from previous response.
+- `severityLevels` - Filter by severity: 'light', 'moderate', 'heavy', 'severe'.
+
+**Rate Limit:** 5 requests/sec
+
+**Scope:** Read Speeding Intervals
+
+### get_safety_settings
+
+Get safety settings for the organization, including harsh event sensitivity levels, in-cab alerts, and crash detection configuration.
+
+**Parameters:**
+- (none)
+
+**Rate Limit:** 5 requests/sec
+
+**Scope:** Read Safety Events & Scores (Safety & Cameras)
+
 ### get_org_info
 
 Get information about your organization (e.g. org name, ID, settings). No parameters required.
@@ -364,6 +417,10 @@ Once configured, you can ask your LLM to use the Samsara tools:
 - "List all drivers" / "Show me deactivated drivers"
 - "Create a new driver named Jane Doe with username janedoe"
 - "List all gateways" / "Show gateways by model AG24"
+- "List all tags" / "Show me the tags in my organization"
+- "Create a tag called 'West Coast'" / "Add a new tag named 'Night Shift'"
+- "Get speeding intervals for asset 123 from yesterday" / "Show severe speeding events"
+- "What are my safety settings?" / "Show harsh braking sensitivity"
 - "What's my organization name?" / "Get my org info"
 
 ## API Rate Limits

@@ -3,30 +3,37 @@
 Codegen script: generate samsara_client method, server tool registration, and test stub
 from an OpenAPI endpoint spec (JSON from stdin or file).
 
+Supports generating code for multiple HTTP methods (GET, POST, PATCH, DELETE) from the same endpoint.
+
 Usage:
-  # From file
-  uv run python scripts/add_endpoint.py --spec endpoint_spec.json --tool-name get_drivers
+  # Generate code for ALL methods in the spec (get, post, patch, delete)
+  uv run python scripts/add_endpoint.py --spec endpoint.json
+
+  # Generate code for a specific method only
+  uv run python scripts/add_endpoint.py --spec endpoint.json --method get
+
+  # Override tool name (only works with single method)
+  uv run python scripts/add_endpoint.py --spec endpoint.json --method get --tool-name list_tags
 
   # From stdin (interactive)
-  uv run python scripts/add_endpoint.py --tool-name get_drivers
+  uv run python scripts/add_endpoint.py
   # Then paste JSON
 
   # Legacy usage (backwards compatible)
   uv run python scripts/add_endpoint.py path/to/spec.json
 
-Input JSON format (OpenAPI-style, one operation):
-  Option A - path + method key:
-    { "path": "/fleet/drivers", "get": { "operationId": "listDrivers", "summary": "...", "parameters": [...] } }
-    { "path": "/fleet/drivers", "post": { "operationId": "createDriver", "requestBody": {...}, ... } }
-    { "path": "/fleet/drivers/{id}", "patch": { "operationId": "updateDriver", "requestBody": {...}, ... } }
-  Option B - path as key:
-    { "/fleet/drivers": { "get": { "operationId": "listDrivers", ... } } }
+Input JSON format (OpenAPI-style, supports multiple operations per endpoint):
+  Option A - path + method keys:
+    { "path": "/fleet/drivers", "get": { "operationId": "listDrivers", ... }, "post": { "operationId": "createDriver", ... } }
+  Option B - path as key (recommended):
+    { "/tags": { "get": { "operationId": "listTags", ... }, "post": { "operationId": "createTag", ... } } }
 
-Outputs four sections to stdout for copy-paste into:
-  - samsara_client.py
-  - server.py (list_tools and call_tool)
-  - tests/test_samsara_client.py
-  - README.md snippet
+Outputs five sections to stdout for each operation:
+  1. samsara_client.py — async method
+  2. server.py list_tools() — Tool registration
+  3. server.py call_tool() — elif handler block
+  4. tests/test_samsara_client.py — test stubs
+  5. README.md — Features and Available Tools snippets
 """
 
 import argparse
@@ -48,42 +55,11 @@ def snake_to_camel(name: str) -> str:
     return parts[0].lower() + "".join(p.capitalize() for p in parts[1:])
 
 
-def parse_spec(data: dict, tool_name_override: str | None = None) -> tuple[str, str, str, str, list[dict], dict | None]:
+def parse_operation(path: str, method: str, op: dict, tool_name_override: str | None = None) -> tuple[str, str, str, str, list[dict], dict | None, str, str]:
     """
-    Parse OpenAPI-style spec. Returns:
-    (path, method, operation_id, method_name, parameters, request_body_schema)
+    Parse a single operation from the spec. Returns:
+    (path, method, operation_id, method_name, parameters, request_body_schema, summary, description)
     """
-    path = ""
-    method = ""
-    op = None
-
-    # Option B: path as key, e.g. { "/fleet/drivers": { "get": { ... } } }
-    for key, value in data.items():
-        if key.startswith("/") and isinstance(value, dict):
-            path = key
-            # Priority order: get, post, patch, put, delete
-            for m in ["get", "post", "patch", "put", "delete"]:
-                if m in value:
-                    method = m
-                    op = value[m]
-                    break
-            break
-
-    # Option A: explicit path and get/post/patch
-    if not op:
-        path = data.get("path", "")
-        for m in ["get", "post", "patch", "put", "delete"]:
-            if m in data:
-                method = m
-                op = data[m]
-                break
-
-    if not path or not method or not op:
-        raise SystemExit(
-            "Invalid spec: need path and get/post/patch with operationId.\n"
-            'Example: {"path": "/me", "get": {"operationId": "getOrganizationInfo", "summary": "..."}}'
-        )
-
     operation_id = op.get("operationId") or camel_to_snake(path.strip("/").replace("/", "_"))
     method_name = tool_name_override or camel_to_snake(operation_id)
 
@@ -108,12 +84,68 @@ def parse_spec(data: dict, tool_name_override: str | None = None) -> tuple[str, 
             })
 
     request_body_schema = None
-    if method in ("post", "patch", "put") and op.get("requestBody"):
+    if method in ("post", "patch", "put", "delete") and op.get("requestBody"):
         rb = op["requestBody"]
         content = (rb.get("content") or {}).get("application/json") or {}
         request_body_schema = content.get("schema")
 
-    return path, method, operation_id, method_name, parameters, request_body_schema
+    summary = op.get("summary") or ""
+    description = op.get("description") or ""
+
+    return path, method, operation_id, method_name, parameters, request_body_schema, summary, description
+
+
+def parse_all_operations(data: dict, method_filter: str | None = None) -> list[tuple[str, str, dict]]:
+    """
+    Parse all operations from the spec. Returns list of (path, method, operation_dict).
+    If method_filter is provided, only return that method.
+    """
+    operations = []
+    http_methods = ["get", "post", "patch", "put", "delete"]
+
+    # Option B: path as key, e.g. { "/fleet/drivers": { "get": { ... }, "post": { ... } } }
+    for key, value in data.items():
+        if key.startswith("/") and isinstance(value, dict):
+            path = key
+            for m in http_methods:
+                if m in value and isinstance(value[m], dict):
+                    if method_filter is None or m == method_filter.lower():
+                        operations.append((path, m, value[m]))
+
+    # Option A: explicit path and method keys at top level
+    if not operations:
+        path = data.get("path", "")
+        if path:
+            for m in http_methods:
+                if m in data and isinstance(data[m], dict):
+                    if method_filter is None or m == method_filter.lower():
+                        operations.append((path, m, data[m]))
+
+    if not operations:
+        raise SystemExit(
+            "Invalid spec: need path and get/post/patch/delete with operationId.\n"
+            'Example: {"path": "/me", "get": {"operationId": "getOrganizationInfo", "summary": "..."}}\n'
+            'Or: {"/tags": {"get": {...}, "post": {...}}}'
+        )
+
+    return operations
+
+
+def parse_spec(data: dict, tool_name_override: str | None = None) -> tuple[str, str, str, str, list[dict], dict | None]:
+    """
+    Parse OpenAPI-style spec (single operation). Returns:
+    (path, method, operation_id, method_name, parameters, request_body_schema)
+    
+    For multiple operations, use parse_all_operations() instead.
+    """
+    operations = parse_all_operations(data)
+    if not operations:
+        raise SystemExit("No operations found in spec.")
+    
+    path, method, op = operations[0]  # Take first operation for backwards compatibility
+    result = parse_operation(path, method, op, tool_name_override)
+    # Return first 6 elements (excluding summary, description) for backwards compatibility
+    return result[:6]
 
 
 def py_type(schema_type: str, enum: list | None, required: bool = False) -> str:
@@ -869,50 +901,17 @@ def gen_readme_snippet(method_name: str, summary: str, parameters: list[dict], m
 '''
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate MCP server code from an OpenAPI endpoint spec.",
-        epilog="""
-Examples:
-  # From file with tool name
-  uv run python scripts/add_endpoint.py --spec endpoint.json --tool-name get_drivers
-
-  # From stdin (interactive)
-  uv run python scripts/add_endpoint.py --tool-name get_drivers
-  # Then paste JSON
-
-  # Legacy usage (backwards compatible)
-  uv run python scripts/add_endpoint.py endpoint.json
-""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--spec", "-s", type=str, help="Path to OpenAPI spec JSON file")
-    parser.add_argument("--tool-name", "-n", type=str, help="Override the tool/method name (e.g., get_drivers)")
-    parser.add_argument("positional_spec", nargs="?", type=str, help="Path to spec file (legacy, use --spec instead)")
-
-    args = parser.parse_args()
-
-    # Determine spec source: --spec, positional arg, or stdin
-    spec_file = args.spec or args.positional_spec
-    if spec_file and spec_file != "-":
-        with open(spec_file) as f:
-            data = json.load(f)
-    else:
-        print("Paste OpenAPI spec JSON (Ctrl+D when done):", file=sys.stderr)
-        data = json.load(sys.stdin)
-
-    path, method, operation_id, method_name, parameters, request_body_schema = parse_spec(
-        data, tool_name_override=args.tool_name
-    )
-
-    # Get summary/description from the operation
-    op = None
-    if path in data and isinstance(data[path], dict):
-        op = data[path].get(method) or {}
-    else:
-        op = data.get(method) or {}
-    summary = op.get("summary") or ""
-    description = op.get("description") or ""
+def generate_for_operation(
+    path: str,
+    method: str,
+    op: dict,
+    tool_name_override: str | None = None,
+    operation_index: int = 0,
+    total_operations: int = 1,
+) -> None:
+    """Generate and print code for a single operation."""
+    parsed = parse_operation(path, method, op, tool_name_override)
+    path, method, operation_id, method_name, parameters, request_body_schema, summary, description = parsed
 
     client_code = gen_client_method(path, method, method_name, parameters, request_body_schema)
     tool_code = gen_tool_registration(method_name, path, method, parameters, summary, description)
@@ -920,9 +919,14 @@ Examples:
     test_code = gen_test_stub(method_name, path, method, parameters)
     readme_code = gen_readme_snippet(method_name, summary, parameters, method)
 
-    print("=" * 60)
-    print(f"GENERATED CODE FOR: {method_name} ({method.upper()} {path})")
-    print("=" * 60)
+    if total_operations > 1:
+        print("\n" + "#" * 80)
+        print(f"# OPERATION {operation_index + 1}/{total_operations}: {method_name} ({method.upper()} {path})")
+        print("#" * 80)
+    else:
+        print("=" * 60)
+        print(f"GENERATED CODE FOR: {method_name} ({method.upper()} {path})")
+        print("=" * 60)
 
     print("\n" + "=" * 60)
     print("1. samsara_client.py — add this async method (before async def close)")
@@ -949,6 +953,70 @@ Examples:
     print("5. README.md — add to Features and Available Tools sections")
     print("=" * 60)
     print(readme_code)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Generate MCP server code from an OpenAPI endpoint spec.",
+        epilog="""
+Examples:
+  # Generate code for all methods in the spec (get, post, patch, delete)
+  uv run python scripts/add_endpoint.py --spec endpoint.json
+
+  # Generate code for a specific method only
+  uv run python scripts/add_endpoint.py --spec endpoint.json --method get
+
+  # Override tool name (only works with single method)
+  uv run python scripts/add_endpoint.py --spec endpoint.json --method get --tool-name list_tags
+
+  # From stdin (interactive)
+  uv run python scripts/add_endpoint.py
+  # Then paste JSON
+
+  # Legacy usage (backwards compatible)
+  uv run python scripts/add_endpoint.py endpoint.json
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--spec", "-s", type=str, help="Path to OpenAPI spec JSON file")
+    parser.add_argument("--method", "-m", type=str, choices=["get", "post", "patch", "put", "delete"],
+                        help="Filter to specific HTTP method (default: all methods)")
+    parser.add_argument("--tool-name", "-n", type=str, 
+                        help="Override the tool/method name (only works with single method)")
+    parser.add_argument("positional_spec", nargs="?", type=str, help="Path to spec file (legacy, use --spec instead)")
+
+    args = parser.parse_args()
+
+    # Determine spec source: --spec, positional arg, or stdin
+    spec_file = args.spec or args.positional_spec
+    if spec_file and spec_file != "-":
+        with open(spec_file) as f:
+            data = json.load(f)
+    else:
+        print("Paste OpenAPI spec JSON (Ctrl+D when done):", file=sys.stderr)
+        data = json.load(sys.stdin)
+
+    # Parse all operations from the spec
+    operations = parse_all_operations(data, method_filter=args.method)
+
+    if len(operations) > 1 and args.tool_name:
+        print(f"Warning: --tool-name is ignored when multiple operations are found.", file=sys.stderr)
+        print(f"Found {len(operations)} operations: {', '.join(f'{m.upper()} {p}' for p, m, _ in operations)}", file=sys.stderr)
+        print(f"Use --method to filter to a single operation if you want to use --tool-name.\n", file=sys.stderr)
+
+    # Print summary
+    if len(operations) > 1:
+        print("=" * 80)
+        print(f"GENERATING CODE FOR {len(operations)} OPERATIONS:")
+        for i, (path, method, op) in enumerate(operations, 1):
+            op_id = op.get("operationId") or "unnamed"
+            print(f"  {i}. {method.upper()} {path} ({op_id})")
+        print("=" * 80)
+
+    # Generate code for each operation
+    for i, (path, method, op) in enumerate(operations):
+        tool_name = args.tool_name if len(operations) == 1 else None
+        generate_for_operation(path, method, op, tool_name, i, len(operations))
 
 
 if __name__ == "__main__":

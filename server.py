@@ -644,6 +644,110 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="list_tags",
+            description=(
+                "List all tags in the organization. Tags are used to group and filter "
+                "vehicles, drivers, and other assets. Supports pagination. "
+                "Requires Read Tags scope under Setup & Administration."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of results (1-512, default 512).",
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Pagination cursor from previous response.",
+                    },
+                },
+            },
+        ),
+        Tool(
+            name="create_tag",
+            description=(
+                "Create a new tag in the organization. Tags can be used to group "
+                "vehicles, drivers, addresses, and other entities. "
+                "Requires Write Tags scope under Setup & Administration."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the tag to create.",
+                    },
+                    "parentTagId": {
+                        "type": "string",
+                        "description": "Optional parent tag ID for nested tags.",
+                    },
+                },
+                "required": ["name"],
+            },
+        ),
+        Tool(
+            name="get_speeding_intervals",
+            description=(
+                "Get speeding intervals for trips. Returns speeding data for completed trips "
+                "based on time parameters. Can filter by severity (light, moderate, heavy, severe). "
+                "Rate limit: 5 req/sec. Requires Read Speeding Intervals scope."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "assetIds": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of asset IDs (up to 50).",
+                    },
+                    "startTime": {
+                        "type": "string",
+                        "description": "RFC 3339 timestamp for start of query range.",
+                    },
+                    "endTime": {
+                        "type": "string",
+                        "description": "RFC 3339 timestamp for end of query range (optional).",
+                    },
+                    "queryBy": {
+                        "type": "string",
+                        "enum": ["updatedAtTime", "tripStartTime"],
+                        "description": "Compare times against 'updatedAtTime' (default) or 'tripStartTime'.",
+                    },
+                    "includeAsset": {
+                        "type": "boolean",
+                        "description": "Include expanded asset data.",
+                    },
+                    "includeDriverId": {
+                        "type": "boolean",
+                        "description": "Include driver ID in response.",
+                    },
+                    "after": {
+                        "type": "string",
+                        "description": "Pagination cursor from previous response.",
+                    },
+                    "severityLevels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter by severity: 'light', 'moderate', 'heavy', 'severe'.",
+                    },
+                },
+                "required": ["assetIds", "startTime"],
+            },
+        ),
+        Tool(
+            name="get_safety_settings",
+            description=(
+                "Get safety settings for the organization. Includes harsh event sensitivity, "
+                "in-cab alerts, and other safety configuration. Rate limit: 5 req/sec. "
+                "Requires Read Safety Events & Scores scope under Safety & Cameras."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
+        Tool(
             name="get_org_info",
             description=(
                 "Get information about your organization (e.g. org name, ID, settings). "
@@ -1227,6 +1331,162 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             return [TextContent(type="text", text=f"Error: {error_message}")]
         except SamsaraError as e:
             return [TextContent(type="text", text=f"Error: {str(e)}")]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Unexpected error: {type(e).__name__}: {str(e)}"
+            )]
+
+    elif name == "list_tags":
+        try:
+            limit = arguments.get("limit")
+            after = arguments.get("after")
+
+            result = await client.list_tags(
+                limit=limit,
+                after=after,
+            )
+
+            import json
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        except SamsaraRateLimitError as e:
+            error_message = str(e)
+            if e.retry_after:
+                error_message += f"\n\nPlease wait {e.retry_after} seconds before retrying."
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraAPIError as e:
+            error_message = str(e)
+            if e.response_body:
+                import json
+                error_message += f"\n\nResponse details: {json.dumps(e.response_body, indent=2)}"
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraError as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Unexpected error: {type(e).__name__}: {str(e)}"
+            )]
+
+    elif name == "create_tag":
+        try:
+            tag_name = arguments.get("name")
+            if not tag_name:
+                return [TextContent(
+                    type="text",
+                    text="Error: 'name' is required to create a tag."
+                )]
+
+            body = {"name": tag_name}
+            if arguments.get("parentTagId"):
+                body["parentTagId"] = arguments["parentTagId"]
+
+            result = await client.create_tag(body)
+            import json
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        except SamsaraRateLimitError as e:
+            error_message = str(e)
+            if e.retry_after:
+                error_message += f"\n\nPlease wait {e.retry_after} seconds before retrying."
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraAPIError as e:
+            error_message = str(e)
+            if e.response_body:
+                import json
+                error_message += f"\n\nResponse details: {json.dumps(e.response_body, indent=2)}"
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraError as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Unexpected error: {type(e).__name__}: {str(e)}"
+            )]
+
+    elif name == "get_speeding_intervals":
+        try:
+            asset_ids = arguments.get("assetIds")
+            start_time = arguments.get("startTime")
+            end_time = arguments.get("endTime")
+            query_by = arguments.get("queryBy")
+            include_asset = arguments.get("includeAsset")
+            include_driver_id = arguments.get("includeDriverId")
+            after = arguments.get("after")
+            severity_levels = arguments.get("severityLevels")
+
+            if not asset_ids or not start_time:
+                return [TextContent(
+                    type="text",
+                    text="Error: get_speeding_intervals requires 'assetIds' and 'startTime'."
+                )]
+
+            result = await client.get_speeding_intervals(
+                asset_ids=asset_ids,
+                start_time=start_time,
+                end_time=end_time,
+                query_by=query_by,
+                include_asset=include_asset,
+                include_driver_id=include_driver_id,
+                after=after,
+                severity_levels=severity_levels,
+            )
+
+            import json
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        except SamsaraRateLimitError as e:
+            error_message = str(e)
+            if e.retry_after:
+                error_message += f"\n\nPlease wait {e.retry_after} seconds before retrying."
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraAPIError as e:
+            error_message = str(e)
+            if e.response_body:
+                import json
+                error_message += f"\n\nResponse details: {json.dumps(e.response_body, indent=2)}"
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraError as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Unexpected error: {type(e).__name__}: {str(e)}"
+            )]
+
+    elif name == "get_safety_settings":
+        try:
+            result = await client.get_safety_settings()
+
+            import json
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        except SamsaraRateLimitError as e:
+            error_message = str(e)
+            if e.retry_after:
+                error_message += f"\n\nPlease wait {e.retry_after} seconds before retrying."
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraAPIError as e:
+            error_message = str(e)
+            if e.response_body:
+                import json
+                error_message += f"\n\nResponse details: {json.dumps(e.response_body, indent=2)}"
+            return [TextContent(type="text", text=f"Error: {error_message}")]
+
+        except SamsaraError as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
         except Exception as e:
             return [TextContent(
                 type="text",

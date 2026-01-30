@@ -25,6 +25,10 @@ EXPECTED_TOOL_NAMES = [
     "get_driver",
     "update_driver",
     "list_gateways",
+    "list_tags",
+    "create_tag",
+    "get_speeding_intervals",
+    "get_safety_settings",
     "get_org_info",
 ]
 
@@ -188,6 +192,39 @@ async def test_update_driver_schema_properties_and_required(tools):
     assert set(tool.inputSchema.get("required", [])) == {"id", "body"}
 
 
+async def test_list_tags_schema_properties(tools):
+    """list_tags has expected inputSchema properties."""
+    tool = next(t for t in tools if t.name == "list_tags")
+    props = tool.inputSchema["properties"]
+    expected = {"limit", "after"}
+    assert expected.issubset(props.keys()), f"list_tags missing properties: {expected - props.keys()}"
+
+
+async def test_create_tag_schema_properties_and_required(tools):
+    """create_tag has inputSchema with name required."""
+    tool = next(t for t in tools if t.name == "create_tag")
+    props = tool.inputSchema["properties"]
+    assert "name" in props, "create_tag missing 'name' property"
+    assert tool.inputSchema.get("required") == ["name"]
+
+
+async def test_get_speeding_intervals_schema_properties_and_required(tools):
+    """get_speeding_intervals has expected inputSchema and required params."""
+    tool = next(t for t in tools if t.name == "get_speeding_intervals")
+    props = tool.inputSchema["properties"]
+    expected = {"assetIds", "startTime", "endTime", "queryBy", "includeAsset", "includeDriverId", "after", "severityLevels"}
+    assert expected.issubset(props.keys()), f"get_speeding_intervals missing properties"
+    assert set(tool.inputSchema.get("required", [])) == {"assetIds", "startTime"}
+
+
+async def test_get_safety_settings_schema_properties(tools):
+    """get_safety_settings has inputSchema with type object; no required params."""
+    tool = next(t for t in tools if t.name == "get_safety_settings")
+    assert tool.inputSchema.get("type") == "object"
+    assert "properties" in tool.inputSchema
+    assert tool.inputSchema["properties"] == {}
+
+
 async def test_get_org_info_schema_properties(tools):
     """get_org_info has inputSchema with type object; no required params."""
     tool = next(t for t in tools if t.name == "get_org_info")
@@ -225,4 +262,8 @@ async def test_descriptions_are_informative(tools):
     assert "driver" in by_name["get_driver"].description.lower() or "retrieve" in by_name["get_driver"].description.lower()
     assert "update" in by_name["update_driver"].description.lower() or "driver" in by_name["update_driver"].description.lower()
     assert "gateway" in by_name["list_gateways"].description.lower() or "list" in by_name["list_gateways"].description.lower()
+    assert "tag" in by_name["list_tags"].description.lower() or "list" in by_name["list_tags"].description.lower()
+    assert "tag" in by_name["create_tag"].description.lower() or "create" in by_name["create_tag"].description.lower()
+    assert "speeding" in by_name["get_speeding_intervals"].description.lower() or "interval" in by_name["get_speeding_intervals"].description.lower()
+    assert "safety" in by_name["get_safety_settings"].description.lower() or "settings" in by_name["get_safety_settings"].description.lower()
     assert "organization" in by_name["get_org_info"].description.lower() or "org" in by_name["get_org_info"].description.lower()

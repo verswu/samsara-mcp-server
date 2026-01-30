@@ -1151,6 +1151,330 @@ class SamsaraClient:
         except httpx.RequestError as e:
             raise SamsaraError(f"Network error connecting to Samsara API: {str(e)}") from e
 
+    async def list_tags(
+        self,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List all tags in the organization.
+
+        Args:
+            limit: Number of results (1-512, default 512).
+            after: Pagination cursor from previous response.
+
+        Returns:
+            Response data from the Samsara API (ListTagsResponse).
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if after is not None:
+            params["after"] = after
+
+        try:
+            response = await self.client.get("/tags", params=params)
+
+            if response.status_code == 429:
+                retry_after = None
+                if "Retry-After" in response.headers:
+                    try:
+                        retry_after = int(response.headers["Retry-After"])
+                    except ValueError:
+                        pass
+                error_message = (
+                    "Rate limit exceeded. Samsara API allows 25 requests per second. "
+                    "Please wait before retrying."
+                )
+                if retry_after:
+                    error_message += f" Retry after {retry_after} seconds."
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict) and "message" in error_body:
+                        error_message = error_body["message"]
+                except Exception:
+                    pass
+                raise SamsaraRateLimitError(error_message, retry_after=retry_after)
+
+            if response.status_code >= 400:
+                error_message = f"Samsara API error: {response.status_code}"
+                error_body = None
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict):
+                        if "message" in error_body:
+                            error_message = f"Samsara API error: {error_body['message']}"
+                        elif "error" in error_body:
+                            error_message = f"Samsara API error: {error_body['error']}"
+                except Exception:
+                    try:
+                        error_text = response.text
+                        if error_text:
+                            error_message = f"Samsara API error ({response.status_code}): {error_text[:200]}"
+                    except Exception:
+                        pass
+                raise SamsaraAPIError(
+                    error_message,
+                    status_code=response.status_code,
+                    response_body=error_body,
+                )
+
+            return response.json()
+
+        except (SamsaraAPIError, SamsaraRateLimitError):
+            raise
+        except httpx.HTTPStatusError as e:
+            raise SamsaraAPIError(
+                f"HTTP error: {e.response.status_code}",
+                status_code=e.response.status_code,
+            ) from e
+        except httpx.RequestError as e:
+            raise SamsaraError(f"Network error connecting to Samsara API: {str(e)}") from e
+
+    async def create_tag(self, body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new tag in the organization.
+
+        Args:
+            body: Tag creation request body with 'name' (required) and optional
+                  'parentTagId', 'addresses', 'assets', 'drivers', 'machines',
+                  'sensors', 'trailers', 'vehicles'.
+
+        Returns:
+            Response data from the Samsara API (TagResponse).
+        """
+        try:
+            response = await self.client.post("/tags", json=body)
+
+            if response.status_code == 429:
+                retry_after = None
+                if "Retry-After" in response.headers:
+                    try:
+                        retry_after = int(response.headers["Retry-After"])
+                    except ValueError:
+                        pass
+                error_message = (
+                    "Rate limit exceeded. Samsara API allows 25 requests per second. "
+                    "Please wait before retrying."
+                )
+                if retry_after:
+                    error_message += f" Retry after {retry_after} seconds."
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict) and "message" in error_body:
+                        error_message = error_body["message"]
+                except Exception:
+                    pass
+                raise SamsaraRateLimitError(error_message, retry_after=retry_after)
+
+            if response.status_code >= 400:
+                error_message = f"Samsara API error: {response.status_code}"
+                error_body = None
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict):
+                        if "message" in error_body:
+                            error_message = f"Samsara API error: {error_body['message']}"
+                        elif "error" in error_body:
+                            error_message = f"Samsara API error: {error_body['error']}"
+                except Exception:
+                    try:
+                        error_text = response.text
+                        if error_text:
+                            error_message = f"Samsara API error ({response.status_code}): {error_text[:200]}"
+                    except Exception:
+                        pass
+                raise SamsaraAPIError(
+                    error_message,
+                    status_code=response.status_code,
+                    response_body=error_body,
+                )
+
+            return response.json()
+
+        except (SamsaraAPIError, SamsaraRateLimitError):
+            raise
+        except httpx.HTTPStatusError as e:
+            raise SamsaraAPIError(
+                f"HTTP error: {e.response.status_code}",
+                status_code=e.response.status_code,
+            ) from e
+        except httpx.RequestError as e:
+            raise SamsaraError(f"Network error connecting to Samsara API: {str(e)}") from e
+
+    async def get_speeding_intervals(
+        self,
+        asset_ids: List[str],
+        start_time: str,
+        end_time: Optional[str] = None,
+        query_by: Optional[str] = None,
+        include_asset: Optional[bool] = None,
+        include_driver_id: Optional[bool] = None,
+        after: Optional[str] = None,
+        severity_levels: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get speeding intervals for trips.
+
+        Returns speeding intervals for completed trips based on the time parameters.
+        Rate limit: 5 requests/sec.
+
+        Args:
+            asset_ids: List of asset IDs (up to 50).
+            start_time: RFC 3339 timestamp for start of query range.
+            end_time: RFC 3339 timestamp for end of query range (optional).
+            query_by: Compare times against 'updatedAtTime' or 'tripStartTime'.
+            include_asset: Include expanded asset data.
+            include_driver_id: Include driver ID in response.
+            after: Pagination cursor from previous response.
+            severity_levels: Filter by severity ('light', 'moderate', 'heavy', 'severe').
+
+        Returns:
+            Response data from the Samsara API.
+        """
+        params: Dict[str, Any] = {}
+        params["assetIds"] = asset_ids
+        params["startTime"] = start_time
+        if end_time is not None:
+            params["endTime"] = end_time
+        if query_by is not None:
+            params["queryBy"] = query_by
+        if include_asset is not None:
+            params["includeAsset"] = include_asset
+        if include_driver_id is not None:
+            params["includeDriverId"] = include_driver_id
+        if after is not None:
+            params["after"] = after
+        if severity_levels is not None:
+            params["severityLevels"] = severity_levels
+
+        try:
+            response = await self.client.get("/speeding-intervals/stream", params=params)
+
+            if response.status_code == 429:
+                retry_after = None
+                if "Retry-After" in response.headers:
+                    try:
+                        retry_after = int(response.headers["Retry-After"])
+                    except ValueError:
+                        pass
+                error_message = (
+                    "Rate limit exceeded. Speeding intervals endpoint allows 5 requests per second. "
+                    "Please wait before retrying."
+                )
+                if retry_after:
+                    error_message += f" Retry after {retry_after} seconds."
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict) and "message" in error_body:
+                        error_message = error_body["message"]
+                except Exception:
+                    pass
+                raise SamsaraRateLimitError(error_message, retry_after=retry_after)
+
+            if response.status_code >= 400:
+                error_message = f"Samsara API error: {response.status_code}"
+                error_body = None
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict):
+                        if "message" in error_body:
+                            error_message = f"Samsara API error: {error_body['message']}"
+                        elif "error" in error_body:
+                            error_message = f"Samsara API error: {error_body['error']}"
+                except Exception:
+                    try:
+                        error_text = response.text
+                        if error_text:
+                            error_message = f"Samsara API error ({response.status_code}): {error_text[:200]}"
+                    except Exception:
+                        pass
+                raise SamsaraAPIError(
+                    error_message,
+                    status_code=response.status_code,
+                    response_body=error_body,
+                )
+
+            return response.json()
+
+        except (SamsaraAPIError, SamsaraRateLimitError):
+            raise
+        except httpx.HTTPStatusError as e:
+            raise SamsaraAPIError(
+                f"HTTP error: {e.response.status_code}",
+                status_code=e.response.status_code,
+            ) from e
+        except httpx.RequestError as e:
+            raise SamsaraError(f"Network error connecting to Samsara API: {str(e)}") from e
+
+    async def get_safety_settings(self) -> Dict[str, Any]:
+        """
+        Get safety settings for the organization.
+
+        Rate limit: 5 requests/sec.
+
+        Returns:
+            Safety settings data from the Samsara API.
+        """
+        try:
+            response = await self.client.get("/fleet/settings/safety")
+
+            if response.status_code == 429:
+                retry_after = None
+                if "Retry-After" in response.headers:
+                    try:
+                        retry_after = int(response.headers["Retry-After"])
+                    except ValueError:
+                        pass
+                error_message = (
+                    "Rate limit exceeded. Safety settings endpoint allows 5 requests per second. "
+                    "Please wait before retrying."
+                )
+                if retry_after:
+                    error_message += f" Retry after {retry_after} seconds."
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict) and "message" in error_body:
+                        error_message = error_body["message"]
+                except Exception:
+                    pass
+                raise SamsaraRateLimitError(error_message, retry_after=retry_after)
+
+            if response.status_code >= 400:
+                error_message = f"Samsara API error: {response.status_code}"
+                error_body = None
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict):
+                        if "message" in error_body:
+                            error_message = f"Samsara API error: {error_body['message']}"
+                        elif "error" in error_body:
+                            error_message = f"Samsara API error: {error_body['error']}"
+                except Exception:
+                    try:
+                        error_text = response.text
+                        if error_text:
+                            error_message = f"Samsara API error ({response.status_code}): {error_text[:200]}"
+                    except Exception:
+                        pass
+                raise SamsaraAPIError(
+                    error_message,
+                    status_code=response.status_code,
+                    response_body=error_body,
+                )
+
+            return response.json()
+
+        except (SamsaraAPIError, SamsaraRateLimitError):
+            raise
+        except httpx.HTTPStatusError as e:
+            raise SamsaraAPIError(
+                f"HTTP error: {e.response.status_code}",
+                status_code=e.response.status_code,
+            ) from e
+        except httpx.RequestError as e:
+            raise SamsaraError(f"Network error connecting to Samsara API: {str(e)}") from e
+
     async def get_organization_info(self) -> Dict[str, Any]:
         """
         Get information about your organization.
