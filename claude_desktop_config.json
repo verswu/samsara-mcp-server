@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "samsara": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "/Users/kent.wu/Projects/samsara-mcp-server/server.py"
+      ],
+      "env": {
+        "SAMSARA_API_TOKEN": "your-samsara-api-token-here"
+      }
+    }
+  }
+}
+

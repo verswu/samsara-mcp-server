@@ -1,0 +1,11 @@
+{
+  "path": "/fleet/drivers",
+  "get": {
+    "operationId": "listDrivers",
+    "summary": "List all drivers",
+    "parameters": [
+      {"name": "driverActivationStatus", "in": "query", "schema": {"type": "string", "enum": ["active", "deactivated"]}, "description": "Filter by status"},
+      {"name": "limit", "in": "query", "schema": {"type": "integer"}, "description": "Max results"}
+    ]
+  }
+}

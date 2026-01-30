@@ -1,0 +1,98 @@
+{
+"/fleet/vehicles/{id}": {
+      "get": {
+        "description": "Get information about a specific vehicle. \n\n **Submit Feedback**: Likes, dislikes, and API feature requests should be filed as feedback in our \u003Ca href=\"https://forms.gle/zkD4NCH7HjKb7mm69\" target=\"_blank\"\u003EAPI feedback form\u003C/a\u003E. If you encountered an issue or noticed inaccuracies in the API documentation, please \u003Ca href=\"https://www.samsara.com/help\" target=\"_blank\"\u003Esubmit a case\u003C/a\u003E to our support team.\n\nTo use this endpoint, select **Read Vehicles** under the Vehicles category when creating or editing an API token. \u003Ca href=\"https://developers.samsara.com/docs/authentication#scopes-for-api-tokens\" target=\"_blank\"\u003ELearn More.\u003C/a\u003E",
+        "operationId": "getVehicle",
+        "parameters": [
+          {
+            "description": "ID of the vehicle. This can either be the Samsara-specified ID, or an external ID. External IDs are customer specified key-value pairs created in the POST or PATCH requests of this resource, or automatically populated by fields on the vehicle. To specify an external ID as part of a path parameter, use the following format: `key:value`. For example, `maintenanceId:250020`. Automatically populated external IDs are prefixed with `samsara.`. For example, `samsara.vin:1HGBH41JXMN109186`.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleResponse"
+                }
+              }
+            },
+            "description": "Returns the specified vehicle object."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/standardErrorResponse"
+                }
+              }
+            },
+            "description": "Error response"
+          }
+        },
+        "summary": "Retrieve a vehicle",
+        "tags": [
+          "Vehicles"
+        ]
+      },
+      "patch": {
+        "description": "Updates the given Vehicle object.\n\n**Note:** Vehicle objects are automatically created when Samsara Vehicle Gateways are installed. You cannot create a Vehicle object via API.\n\nYou are able to *update* many of the fields of a Vehicle.\n\n**Note**: There are no required fields in the request body, and you only need to provide the fields you wish to update. \n\n **Submit Feedback**: Likes, dislikes, and API feature requests should be filed as feedback in our \u003Ca href=\"https://forms.gle/zkD4NCH7HjKb7mm69\" target=\"_blank\"\u003EAPI feedback form\u003C/a\u003E. If you encountered an issue or noticed inaccuracies in the API documentation, please \u003Ca href=\"https://www.samsara.com/help\" target=\"_blank\"\u003Esubmit a case\u003C/a\u003E to our support team.\n\nTo use this endpoint, select **Write Vehicles** under the Vehicles category when creating or editing an API token. \u003Ca href=\"https://developers.samsara.com/docs/authentication#scopes-for-api-tokens\" target=\"_blank\"\u003ELearn More.\u003C/a\u003E",
+        "operationId": "updateVehicle",
+        "parameters": [
+          {
+            "description": "ID of the vehicle. This can either be the Samsara-specified ID, or an external ID. External IDs are customer specified key-value pairs created in the POST or PATCH requests of this resource, or automatically populated by fields on the vehicle. To specify an external ID as part of a path parameter, use the following format: `key:value`. For example, `maintenanceId:250020`. Automatically populated external IDs are prefixed with `samsara.`. For example, `samsara.vin:1HGBH41JXMN109186`.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVehicleRequest"
+              }
+            }
+          },
+          "description": "Fields that can be patched on a vehicle.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleResponse"
+                }
+              }
+            },
+            "description": "Returns the specified vehicle object."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/standardErrorResponse"
+                }
+              }
+            },
+            "description": "Error response"
+          }
+        },
+        "summary": "Update a vehicle",
+        "tags": [
+          "Vehicles"
+        ],
+        "x-codegen-request-body-name": "vehicle"
+      }
+    }
+}
